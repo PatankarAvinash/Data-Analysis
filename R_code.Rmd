@@ -1,0 +1,183 @@
+---
+title: "Verification Of Charges by courier company"
+author: "Avinash Patankar"
+date: "`r Sys.Date()`"
+output:
+  html_document: default
+  pdf_document: default
+  word_document: default
+---
+
+* #####  Steps followed to verify if the charges levied by courier company per Order are correct - 
+   + step 1 :- loading the required packages
+```{r libraries, echo=TRUE, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(readr)
+library(readxl)
+library(dplyr)
+library(stringr)
+library(data.table)
+library(writexl)
+library(splitstackshape)
+library(data.table)
+```
+   + step 2 :- importing the required files in Rstudio
+```{r}
+companyx_order_report <- read_xlsx("C:\\Users\\patankar.avinash\\Downloads\\Cointab\\Company X - Order Report.xlsx")
+
+companyx_courier_zone <- read_xlsx("C:\\Users\\patankar.avinash\\Downloads\\Cointab\\Company X - Pincode Zones.xlsx")
+companyx_sku_master <- read_xlsx("C:\\Users\\patankar.avinash\\Downloads\\Cointab\\Company X - SKU Master.xlsx")
+courier_company_invoice <- read_xlsx("C:\\Users\\patankar.avinash\\Downloads\\Cointab\\Courier Company - Invoice.xlsx")
+courier_company_rate <- read_xlsx("C:\\Users\\patankar.avinash\\Downloads\\Cointab\\Courier Company - Rates.xlsx")
+
+```
+  + step 3 :- merging companyx_order_report and companyx_sku_master
+       
+      *Note :- the new files are named as D1, D2, D3.... evry time there is a major change.
+
+        
+```{r}
+# deleting duplicate from companyx_sku_master
+companyx_sku_master1 <- companyx_sku_master %>% distinct() 
+# merging both dataframes
+D1 <- merge(companyx_order_report,companyx_sku_master1,by="SKU")
+```
+  + step 4 :- calculating the total weight (Kg.)
+```{r}
+# typecasting the quantity column fron character to integer
+D1$`Order Qty`<- as.numeric(as.character(D1$`Order Qty`))
+D1 <- D1 %>% mutate(total_weight=`Order Qty`*`Weight (g)`/1000)
+```
+             
+  + step  5 :- calculating total of each order
+```{r}
+D2 <-D1 %>% group_by(ExternOrderNo) %>% summarise(total_weight_by_order=sum(total_weight))
+```
+  
+  + step 6 :- merging the latest D2 file with courier_company_invoice
+```{r}
+D3 <- merge(D2,courier_company_invoice,by.x = "ExternOrderNo",by.y="Order ID")
+```
+  + step 7 :- calculating weight slab 
+```{r}
+D3 <- D3 %>%  mutate(weight_slabs=ceiling(D3$total_weight_by_order*2)/2)
+# converting charged Weight from character to double
+D3$`Charged Weight`<- as.double(as.character(D3$`Charged Weight`))
+D3 <- D3 %>% mutate(weight_slabs_courier_company=ceiling(D3$`Charged Weight`*2)/2)
+```
+  + step 8 :- merging latest D3 with companyx_courier_zone
+```{r}
+#deleting duplicates 
+companyx_courier_zone <- distinct(companyx_courier_zone)
+#typecasting pincode column
+companyx_courier_zone$`Customer Pincode`<- as.character(as.integer(companyx_courier_zone$`Customer Pincode`))
+# changing column name of zone to zone_x for distinguish
+colnames(companyx_courier_zone)[3]="zone_x"
+#merging 
+D4 <- D3 %>% left_join(companyx_courier_zone,by="Customer Pincode")
+```
+  + step 9 :- modifying courier_company_rate
+```{r warning=FALSE}
+z1 <- colnames(courier_company_rate)
+courier_company_rate <-  courier_company_rate %>% pivot_longer(c(z1),names_to = "zone_and_type_pay",values_to = "charges")
+courier_company_rate <- cSplit(courier_company_rate,"zone_and_type_pay","_")
+courier_company_rate <- courier_company_rate %>% mutate(across(zone_and_type_pay_1,str_replace,'fwd',"Forward charges")) 
+courier_company_rate <- courier_company_rate %>% mutate(across(zone_and_type_pay_1,str_replace,'rto',"RTO charges"))
+courier_company_rate <- courier_company_rate %>% pivot_wider(names_from = zone_and_type_pay_3,values_from  = charges)
+a <- courier_company_rate %>% group_by(zone_and_type_pay_2) %>% summarise("fixed"=sum(fixed),"additional"=sum(additional))
+FandRTO <- data.frame(append(a,c("zone_and_type_pay_1"="Forward and RTO charges"),after = 0))
+courier_company_rate <- rbind(courier_company_rate,FandRTO)
+courier_company_rate<-courier_company_rate %>% mutate("fixed + additional"=fixed+additional)
+
+```
+  + step 10 :- merging _courier_company_rate with D4
+```{r}
+colnames(courier_company_rate)[1]="Type of Shipment"
+ colnames(courier_company_rate)[2]="zone_x"
+ D5 <- D4 %>% left_join(courier_company_rate,by=c("Type of Shipment","zone_x"))
+```
+  + step 11 :- calculating expected charges 
+```{r}
+ D6 <-cbind(D5,Expected_charge=NA)
+ for (i in 1:nrow(D6)) {
+   x <-D6[i,10]
+   if(x==0.5){
+     D6[i,17]<-D6[i,14]
+   }
+   if(x>0.5){
+     D6[i,17]<- D6[i,16]*x
+   }
+ }
+```
+  + step 12 :- finding difference between expected and billed charges
+```{r}
+ D6$`Billing Amount (Rs.)`<- as.double(as.character(D6$`Billing Amount (Rs.)`))
+ colnames(D6)[9]="bill_amount"
+ D7 <- D6 %>%  mutate("difference"=Expected_charge-bill_amount)
+ D7$difference <- round(D7$difference,digits = 3)
+```
+  + step 13 :- getting the required table from latest dataframe D7
+```{r}
+ D8 <- D7[,-c(5,6,8,12,14,15,16)]
+ D9 <- D8[,c(1,3,2,7,4,8,9,5,10,6,11)]
+ c1 <- colnames(D9)
+ setnames(D9, old = c1,new = c("Order ID","AWB Number",
+                               "Total weight as per X (KG)",
+                               "Weight slab as per X (KG)",
+                               "Total weight as per Courier Company (KG)",
+                               "Weight slab charged by Courier Company (KG)",
+                               "Delivery Zone as per X",
+                               "Delivery Zone charged by Courier Company",
+                               "Expected Charge as per X (Rs.)",
+                               "Charges Billed by Courier Company (Rs.)",
+                               "Difference Between Expected Charges and Billed Charges (Rs.)"))
+```
+  + step 14 :- getting the output data 2 table
+```{r}
+a <- nrow(D9)
+b<- sum(D9$`Charges Billed by Courier Company (Rs.)`)
+c <- sum(D9$`Expected Charge as per X (Rs.)`)
+C1 <- c("Total orders where X has been correctly charged",
+        "Total Orders where X has been overcharged",
+        "Total Orders where X has been undercharged",
+        "Total invoice amount by courier company",
+        "expected Total amount by X")
+C2 <- c(0,0,0,a,a)
+C3 <- c(0,0,0,b,c)
+Answers <- data.frame(C1,C2,C3)
+L <-0
+M<-0
+N<-0
+
+for (i in 1:nrow(D9)) {
+  x<- D9[i,11]
+  if(x <0){ L=L+1
+   Answers[2,2]<- L
+     
+      Answers[2,3]<-Answers[2,3]+ x*(-1)
+   
+  }
+  if(x>=0 && x <0.5){
+    M=M+1
+    Answers[1,2]<-M
+    Answers[1,3]<-Answers[1,3]+D9[i,9]
+    
+  }
+  if(x >=0.5){ N=N+1
+  Answers[3,2]<- N
+  
+  Answers[3,3]<-Answers[3,3]+x
+  
+  }
+}
+```
+ + step 15 :- extracting required file
+```{r}
+write_xlsx(D9,"C:\\Users\\patankar.avinash\\Downloads\\Cointab\\output_data\\output_data-1.xlsx")
+write_xlsx(Answers,"C:\\Users\\patankar.avinash\\Downloads\\Cointab\\output_data\\output_data-2.xlsx")
+```
+ 
+      
+   
+   
+ 
