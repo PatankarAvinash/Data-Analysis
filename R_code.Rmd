@@ -23,12 +23,12 @@ library(data.table)
 ```
    + step 2 :- importing the required files in Rstudio
 ```{r}
-companyx_order_report <- read_xlsx("C:\\Users\\patankar.avinash\\Downloads\\Cointab\\Company X - Order Report.xlsx")
+companyx_order_report <- read_xlsx("C:\\Users\\patankar.avinash\\Downloads\\Company X - Order Report.xlsx")
 
-companyx_courier_zone <- read_xlsx("C:\\Users\\patankar.avinash\\Downloads\\Cointab\\Company X - Pincode Zones.xlsx")
-companyx_sku_master <- read_xlsx("C:\\Users\\patankar.avinash\\Downloads\\Cointab\\Company X - SKU Master.xlsx")
-courier_company_invoice <- read_xlsx("C:\\Users\\patankar.avinash\\Downloads\\Cointab\\Courier Company - Invoice.xlsx")
-courier_company_rate <- read_xlsx("C:\\Users\\patankar.avinash\\Downloads\\Cointab\\Courier Company - Rates.xlsx")
+companyx_courier_zone <- read_xlsx("C:\\Users\\patankar.avinash\\Downloads\\Company X - Pincode Zones.xlsx")
+companyx_sku_master <- read_xlsx("C:\\Users\\patankar.avinash\\Downloads\\Company X - SKU Master.xlsx")
+courier_company_invoice <- read_xlsx("C:\\Users\\patankar.avinash\\Downloads\\Courier Company - Invoice.xlsx")
+courier_company_rate <- read_xlsx("C:\\Users\\patankar.avinash\\Downloads\\Courier Company - Rates.xlsx")
 
 ```
   + step 3 :- merging companyx_order_report and companyx_sku_master
@@ -173,8 +173,8 @@ for (i in 1:nrow(D9)) {
 ```
  + step 15 :- extracting required file
 ```{r}
-write_xlsx(D9,"C:\\Users\\patankar.avinash\\Downloads\\Cointab\\output_data\\output_data-1.xlsx")
-write_xlsx(Answers,"C:\\Users\\patankar.avinash\\Downloads\\Cointab\\output_data\\output_data-2.xlsx")
+write_xlsx(D9,"C:\\Users\\patankar.avinash\\Downloads\\output_data\\output_data-1.xlsx")
+write_xlsx(Answers,"C:\\Users\\patankar.avinash\\Downloads\\output_data\\output_data-2.xlsx")
 ```
  
       
